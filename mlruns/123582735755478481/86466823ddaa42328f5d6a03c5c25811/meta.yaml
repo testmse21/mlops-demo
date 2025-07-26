@@ -1,0 +1,14 @@
+artifact_uri: file:///D:/GitHub/PythonProjects/02-mse/10-mlops/mlops-demo/mlruns/123582735755478481/86466823ddaa42328f5d6a03c5c25811/artifacts
+end_time: 1753498388485
+entry_point_name: ''
+experiment_id: '123582735755478481'
+lifecycle_stage: active
+run_id: 86466823ddaa42328f5d6a03c5c25811
+run_name: resilient-mole-365
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1753498368006
+status: 3
+tags: []
+user_id: Pato

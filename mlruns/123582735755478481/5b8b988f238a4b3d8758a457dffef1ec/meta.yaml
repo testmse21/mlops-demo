@@ -1,0 +1,14 @@
+artifact_uri: file:///D:/GitHub/PythonProjects/02-mse/10-mlops/mlops-demo/mlruns/123582735755478481/5b8b988f238a4b3d8758a457dffef1ec/artifacts
+end_time: 1753376501114
+entry_point_name: ''
+experiment_id: '123582735755478481'
+lifecycle_stage: active
+run_id: 5b8b988f238a4b3d8758a457dffef1ec
+run_name: unique-shark-576
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1753376482713
+status: 3
+tags: []
+user_id: Pato

@@ -1,0 +1,6 @@
+artifact_location: file:///D:/GitHub/PythonProjects/02-mse/10-mlops/mlops-demo/mlruns/123582735755478481
+creation_time: 1753376481463
+experiment_id: '123582735755478481'
+last_update_time: 1753376481463
+lifecycle_stage: active
+name: cat-classifier

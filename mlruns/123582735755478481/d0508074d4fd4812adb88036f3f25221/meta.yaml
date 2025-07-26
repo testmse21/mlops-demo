@@ -1,0 +1,14 @@
+artifact_uri: file:///D:/GitHub/PythonProjects/02-mse/10-mlops/mlops-demo/mlruns/123582735755478481/d0508074d4fd4812adb88036f3f25221/artifacts
+end_time: 1753498143615
+entry_point_name: ''
+experiment_id: '123582735755478481'
+lifecycle_stage: active
+run_id: d0508074d4fd4812adb88036f3f25221
+run_name: melodic-seal-615
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1753498143245
+status: 4
+tags: []
+user_id: Pato
