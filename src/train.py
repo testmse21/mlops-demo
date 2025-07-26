@@ -60,6 +60,7 @@ import mlflow
 import mlflow.pytorch
 
 def train():
+    mlflow.set_tracking_uri("file:./mlruns")
     mlflow.set_experiment("cat-classifier")
     with mlflow.start_run():
         mlflow.log_param("learning_rate", 0.001)
