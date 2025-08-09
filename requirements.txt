@@ -9,3 +9,4 @@ fastapi
 uvicorn
 prometheus-fastapi-instrumentator
 python-multipart
+flask

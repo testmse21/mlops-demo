@@ -1,28 +1,45 @@
-from fastapi import FastAPI, UploadFile, File
+from flask import Flask, request, jsonify, render_template
 import torch
 from PIL import Image
-import sys
-import os
+import os, sys
+from pathlib import Path
+import torchvision.transforms as transforms
+
+# Make sure we can import from src/
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 from model import CatClassifier
-import torchvision.transforms as transforms
-from prometheus_fastapi_instrumentator import Instrumentator
 
-app = FastAPI()
-Instrumentator().instrument(app).expose(app)
+app = Flask(__name__, static_folder="static", template_folder="templates")
 
+# Load model
 model = CatClassifier()
-model.load_state_dict(torch.load("model.pth"))
+model.load_state_dict(torch.load("model.pth", map_location="cpu"))
 model.eval()
 
-@app.post("/predict")
-async def predict(file: UploadFile = File(...)):
-    image = Image.open(file.file).convert("RGB")
+# Routes
+@app.route("/")
+def index():
+    # Renders templates/index.html
+    return render_template("index.html")
+
+@app.route("/predict", methods=["POST"])
+def predict():
+    file = request.files.get("file")
+    if not file:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    image = Image.open(file.stream).convert("RGB")
     transform = transforms.Compose([
         transforms.Resize((64, 64)),
         transforms.ToTensor()
     ])
     tensor = transform(image).unsqueeze(0)
-    output = model(tensor)
+
+    with torch.no_grad():
+        output = model(tensor)
     prediction = torch.argmax(output, 1).item()
-    return {"prediction": "Cat" if prediction == 1 else "Not Cat"}
+    return jsonify({"prediction": "Cat" if prediction == 1 else "Not Cat"})
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8000, debug=True)
