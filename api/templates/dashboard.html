@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Cat Recognition Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #f8f9fa; }
+        img.preview { width: 80px; height: auto; border-radius: 8px; object-fit: cover; }
+        .step { display: flex; align-items: center; margin-bottom: 8px; padding: 8px; border-radius:6px; }
+        .step .icon { width: 28px; text-align:center; margin-right:8px; }
+        .step.pending { background: #fff; color: #6c757d; border: 1px solid #e9ecef; }
+        .step.done { background: #e9f7ee; color: #0f5132; border: 1px solid #badbcc; }
+        .step.failed { background: #fdecea; color: #842029; border: 1px solid #f5c2c7; }
+        .small-muted { font-size: 0.9rem; color: #6c757d; }
+    </style>
+</head>
+<body>
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="fw-bold">🐱 Cat Recognition Dashboard</h1>
+        <button class="btn btn-primary" id="openPushModal">Push Data And Re-train</button>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6 mb-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5>Accuracy per Image</h5>
+                    <canvas id="accuracyChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5>Requests by Day</h5>
+                    <canvas id="requestsChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h5 class="mb-3">Recent Uploads</h5>
+            <div class="table-responsive">
+                <table class="table table-striped align-middle">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Image</th>
+                            <th>Prediction</th>
+                            <th>Confidence</th>
+                            <th>Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recentUploads"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="pushModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Push Data & Re-train</h5>
+        <button type="button" class="btn-close" id="closeModalBtn" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="stepsContainer">
+            <div id="step-move" class="step pending"><div class="icon">⏳</div><div><strong>Move user's image to Train Data</strong><div class="small-muted" id="msg-move"></div></div></div>
+            <div id="step-git_add" class="step pending"><div class="icon">⏳</div><div><strong>Run git add</strong><div class="small-muted" id="msg-git_add"></div></div></div>
+            <div id="step-git_commit" class="step pending"><div class="icon">⏳</div><div><strong>Run git commit</strong><div class="small-muted" id="msg-git_commit"></div></div></div>
+            <div id="step-git_push" class="step pending"><div class="icon">⏳</div><div><strong>Run git push</strong><div class="small-muted" id="msg-git_push"></div></div></div>
+        </div>
+
+        <div class="mt-3">
+            <div id="pushSummary" class="small-muted">Click Start to begin.</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="startPushBtn" class="btn btn-primary">Start</button>
+        <button id="cancelPushBtn" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- scripts -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let pushSource = null;
+const modalEl = new bootstrap.Modal(document.getElementById('pushModal'));
+
+function setStepState(stepId, status, message) {
+    const el = document.getElementById('step-' + stepId);
+    if (!el) return;
+    el.classList.remove('pending','done','failed');
+    el.classList.add(status);
+    const icon = el.querySelector('.icon');
+    if (status === 'done') icon.textContent = '✅';
+    else if (status === 'failed') icon.textContent = '❌';
+    else icon.textContent = '⏳';
+    const msgEl = document.getElementById('msg-' + stepId);
+    if (msgEl) msgEl.textContent = message || '';
+}
+
+// open modal handler
+document.getElementById('openPushModal').addEventListener('click', () => {
+    // reset UI
+    ['move','git_add','git_commit','git_push'].forEach(s => {
+        const el = document.getElementById('step-' + s);
+        if (el) {
+            el.classList.remove('done','failed'); el.classList.add('pending');
+            el.querySelector('.icon').textContent = '⏳';
+            const msg = document.getElementById('msg-' + s); if (msg) msg.textContent = '';
+        }
+    });
+    document.getElementById('pushSummary').textContent = 'Ready to start.';
+    modalEl.show();
+});
+
+// start button - open EventSource to stream endpoint
+document.getElementById('startPushBtn').addEventListener('click', () => {
+    if (pushSource) {
+        pushSource.close();
+        pushSource = null;
+    }
+    document.getElementById('pushSummary').textContent = 'Starting...';
+    // open EventSource (GET)
+    pushSource = new EventSource('/stream/push-retrain');
+
+    pushSource.onmessage = (e) => {
+        try {
+            const data = JSON.parse(e.data);
+            // if event finished
+            if (data.event === 'finished') {
+                if (data.success) {
+                    document.getElementById('pushSummary').textContent = 'All steps finished successfully.';
+                } else {
+                    document.getElementById('pushSummary').textContent = 'Finished with errors.';
+                }
+                // close connection after short wait
+                setTimeout(() => { if (pushSource) { pushSource.close(); pushSource = null; } }, 800);
+                return;
+            }
+            // step message
+            const step = data.step;       // e.g. "move_images" -> map to ids
+            const mapping = {
+                "move_images": "move",
+                "git_add": "git_add",
+                "git_commit": "git_commit",
+                "git_push": "git_push"
+            };
+            const stepId = mapping[step] || step;
+            const status = data.status === 'success' ? 'done' : (data.status === 'failed' ? 'failed' : 'pending');
+            setStepState(stepId, status, data.message || '');
+            document.getElementById('pushSummary').textContent = data.message || '';
+        } catch(err) {
+            console.error('parse stream data err', err, e.data);
+        }
+    };
+
+    pushSource.onerror = (err) => {
+        console.error('EventSource error', err);
+        document.getElementById('pushSummary').textContent = 'Connection error. See console.';
+        if (pushSource) { pushSource.close(); pushSource = null; }
+    };
+});
+
+// close modal: if stream open, close it
+document.getElementById('cancelPushBtn').addEventListener('click', () => {
+    if (pushSource) { pushSource.close(); pushSource = null; }
+});
+
+// charts & recent uploads
+function loadRecentUploads() {
+    fetch('/api/logs/recent')
+        .then(r => r.json())
+        .then(data => {
+            const tbody = document.getElementById('recentUploads'); tbody.innerHTML = '';
+            data.forEach(log => {
+                tbody.innerHTML += `
+                <tr>
+                    <td>${log.username}</td>
+                    <td><img src="${log.image_url}" class="preview"></td>
+                    <td>${log.predicted_label}</td>
+                    <td>${parseFloat(log.confidence * 100).toFixed(2)}%</td>
+                    <td>${log.timestamp}</td>
+                </tr>`;
+            });
+            // build accuracy chart here as well
+            buildAccuracyChart(data);
+        });
+}
+
+function buildAccuracyChart(data) {
+    const labels = data.map((d,i) => `#${i+1}`);
+    const confidences = data.map(d => parseFloat(d.confidence * 100));
+    const ctx = document.getElementById('accuracyChart').getContext('2d');
+    if (window._accChart) window._accChart.destroy();
+    window._accChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets: [{ label:'Confidence (%)', data: confidences, backgroundColor:'#198754' }]},
+        options: { scales: { y: { beginAtZero:true, max:100 } } }
+    });
+}
+
+// Load Requests by Day chart
+function loadRequestsByDay() {
+    fetch('/api/metrics/requests_by_day')
+        .then(res => res.json())
+        .then(data => {
+            new Chart(document.getElementById('requestsChart').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: data.map(r => r.day),
+                    datasets: [{
+                        label: 'Requests',
+                        data: data.map(r => r.count),
+                        backgroundColor: '#0d6efd'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        });
+}
+
+// initial
+loadRecentUploads();
+loadRequestsByDay();
+
+// optional: refresh periodically (e.g., every 15s)
+setInterval(() => { loadRecentUploads(); loadRequestsByDay(); }, 15000);
+</script>
+</body>
+</html>
