@@ -170,7 +170,7 @@ document.getElementById('startPushBtn').addEventListener('click', () => {
 
     pushSource.onerror = (err) => {
         console.error('EventSource error', err);
-        document.getElementById('pushSummary').textContent = 'Connection error. See console.';
+        document.getElementById('pushSummary').textContent = 'See console.';
         if (pushSource) { pushSource.close(); pushSource = null; }
     };
 });
