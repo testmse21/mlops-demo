@@ -200,7 +200,9 @@ def stream_push_retrain():
         yield send_json({"step": "git_add", "status": "started", "message": "Running git add ."})
         try:
             time.sleep(5)
-            p = subprocess.run(["git", "add", "."], cwd=BASE_DIR, capture_output=True, text=True)
+            repo_path = os.path.dirname(BASE_DIR)
+
+            p = subprocess.run(["git", "add", "."], cwd=repo_path, capture_output=True, text=True)
             if p.returncode == 0:
                 yield send_json({"step": "git_add", "status": "success", "message": p.stdout.strip() or "git add ok"})
             else:
@@ -216,7 +218,9 @@ def stream_push_retrain():
         # Step 3: git commit
         yield send_json({"step": "git_commit", "status": "started", "message": "Running git commit"})
         try:
-            p = subprocess.run(["git", "commit", "-m", "Push training data"], cwd=BASE_DIR, capture_output=True, text=True)
+            repo_path = os.path.dirname(BASE_DIR)
+
+            p = subprocess.run(["git", "commit", "-m", "Push training data"], cwd=repo_path, capture_output=True, text=True)
             combined = (p.stdout or "") + (p.stderr or "")
             if p.returncode == 0:
                 yield send_json({"step": "git_commit", "status": "success", "message": combined.strip() or "git commit ok"})
