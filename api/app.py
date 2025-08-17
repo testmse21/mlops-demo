@@ -8,7 +8,7 @@ import os, sys
 from pathlib import Path
 import torchvision.transforms as transforms
 from flask_sqlalchemy import SQLAlchemy
-from git import Repo, repo
+from git import Repo
 from sqlalchemy import func
 import uuid
 import subprocess
@@ -180,9 +180,9 @@ def stream_push_retrain():
 
                 if os.path.exists(src_path):
                     try:
-                        shutil.move(src_path, dst_path)
+                        shutil.copy2(src_path, dst_path)
                         moved += 1
-                        log.true_label = None  # Reset annotation after moving
+                        # log.true_label = None  # Reset annotation after moving
                         log.folder_name = true_label_folder
                         db.session.commit()
                     except Exception as e:
@@ -236,6 +236,8 @@ def stream_push_retrain():
         try:
             GIT_USERNAME = "mqminh"
             GIT_TOKEN = "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"
+
+            repo = Repo(BASE_DIR)
 
             # Repo URL với token
             REMOTE_URL = f"https://{GIT_USERNAME}:{GIT_TOKEN}@github.com/testmse21/mlops-demo.git"
