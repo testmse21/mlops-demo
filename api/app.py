@@ -173,6 +173,9 @@ def stream_push_retrain():
             os.makedirs(dst_base, exist_ok=True)
 
             for log in annotated_logs:
+                if not log.true_label or log.true_label.strip() == "":
+                    continue
+
                 true_label_folder = "Cat" if log.true_label == "Cat" else "Not_Cat"
                 src_path = os.path.join(app.config['UPLOAD_FOLDER'], log.folder_name, log.image_name)
                 dst_folder = os.path.join(dst_base, true_label_folder)
