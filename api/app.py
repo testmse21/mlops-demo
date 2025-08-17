@@ -202,7 +202,7 @@ def stream_push_retrain():
         # Step 2: git add
         yield send_json({"step": "git_add", "status": "started", "message": "Running git add ."})
         try:
-            time.sleep(5)
+            # time.sleep(5)
             repo_path = os.path.dirname(BASE_DIR)
 
             p = subprocess.run(["git", "add", "."], cwd=repo_path, capture_output=True, text=True)
