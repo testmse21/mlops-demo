@@ -235,7 +235,7 @@ def stream_push_retrain():
         yield send_json({"step": "git_push", "status": "started", "message": "Running git push"})
         try:
             GIT_USERNAME = "mqminh"
-            GIT_TOKEN = "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"
+            GIT_TOKEN = "*****"
 
             repo_path = os.path.dirname(BASE_DIR)
             repo = Repo(repo_path)
