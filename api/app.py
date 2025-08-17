@@ -234,46 +234,35 @@ def stream_push_retrain():
         # Step 4: git push
         yield send_json({"step": "git_push", "status": "started", "message": "Running git push"})
         try:
-            GIT_USERNAME = "mqminh"
-            GIT_TOKEN = "*****"
-
             repo_path = os.path.dirname(BASE_DIR)
-            repo = Repo(repo_path)
 
-            # Repo URL với token
-            REMOTE_URL = f"https://{GIT_USERNAME}:{GIT_TOKEN}@github.com/testmse21/mlops-demo.git"
-            # Update remote "origin" để chắc chắn dùng URL có token
-            if "origin" in repo.remotes:
-                origin = repo.remotes.origin
-                origin.set_url(REMOTE_URL)
+            # Push branch main
+            result = subprocess.run(
+                ["git", "push", "origin", "main"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True
+            )
+
+            if result.returncode == 0:
+                yield send_json({
+                    "step": "git_push",
+                    "status": "success",
+                    "message": result.stdout.strip() or "git push ok"
+                })
             else:
-                origin = repo.create_remote("origin", REMOTE_URL)
-
-            push_result = origin.push()
-
-            # Kiểm tra kết quả push
-            messages = []
-            success = True
-            for info in push_result:
-                messages.append(info.summary)
-                if info.flags & info.ERROR:
-                    success = False
-
-            if success:
-                yield send_json(
-                    {"step": "git_push", "status": "success", "message": "\n".join(messages) or "git push ok"})
-            else:
-                yield send_json({"step": "git_push", "status": "failed", "message": "\n".join(messages)})
+                yield send_json({
+                    "step": "git_push",
+                    "status": "failed",
+                    "message": result.stderr.strip() or "git push failed"
+                })
                 yield send_json({"event": "finished", "success": False})
                 return
+
         except Exception as e:
             yield send_json({"step": "git_push", "status": "failed", "message": str(e)})
             yield send_json({"event": "finished", "success": False})
             return
-
-        # All done
-        yield send_json({"event": "finished", "success": True})
-        return
 
     headers = {
         "Cache-Control": "no-cache",
