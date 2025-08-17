@@ -187,7 +187,7 @@ def stream_push_retrain():
                         shutil.copy2(src_path, dst_path)
                         moved += 1
                         # log.true_label = None  # Reset annotation after moving
-                        log.folder_name = true_label_folder
+                        # log.folder_name = true_label_folder
                         db.session.commit()
                     except Exception as e:
                         yield send_json({"step": "move_images", "status": "warning",
