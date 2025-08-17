@@ -8,6 +8,7 @@ import os, sys
 from pathlib import Path
 import torchvision.transforms as transforms
 from flask_sqlalchemy import SQLAlchemy
+from git import Repo, repo
 from sqlalchemy import func
 import uuid
 import subprocess
@@ -19,8 +20,9 @@ from src.model import CatClassifier
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
-# Load DB
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+# Load DB
+# BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -39,6 +41,7 @@ class RequestLog(db.Model):
     confidence = db.Column(db.Float, nullable=True)
     folder_name = db.Column(db.String(80), nullable=True)
     image_name = db.Column(db.String(300), nullable=True)
+    true_label = db.Column(db.String(80), nullable=True)
 
 with app.app_context():
     db.create_all()
@@ -95,7 +98,8 @@ def predict():
         folder_name=folder_name,
         image_name=fname,
         predicted_label=pred_label,
-        confidence=confidence
+        confidence=confidence,
+        true_label=''
     )
     db.session.add(log)
     db.session.commit()
@@ -142,7 +146,8 @@ def api_recent_logs():
             "timestamp": r.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
             "image_url": url_for('uploaded_file', folder=r.folder_name, filename=r.image_name),
             "predicted_label": r.predicted_label,
-            "confidence": r.confidence
+            "confidence": r.confidence,
+            "true_label": r.true_label # Include true_label
         })
     return jsonify(data)
 
@@ -161,30 +166,29 @@ def stream_push_retrain():
         yield send_json({"step": "move_images", "status": "started", "message": "Starting move images..."})
         try:
             moved = 0
-            src_folders = ["Cat", "Not_Cat"]
-            dst_base = os.path.join(BASE_DIR, "train_data")
+            # Get all logs with true_label
+            annotated_logs = RequestLog.query.filter(RequestLog.true_label.isnot(None)).all()
+            dst_base = os.path.join(BASE_DIR, "..", "data", "images")
             os.makedirs(dst_base, exist_ok=True)
-            for folder in src_folders:
-                src_dir = os.path.join(app.config['UPLOAD_FOLDER'], folder)
-                dst_dir = os.path.join(dst_base, folder)
-                os.makedirs(dst_dir, exist_ok=True)
-                if os.path.isdir(src_dir):
-                    for fname in os.listdir(src_dir):
-                        s = os.path.join(src_dir, fname)
-                        d = os.path.join(dst_dir, fname)
-                        try:
-                            # atomic move
-                            shutil.copy2(s, d)
-                            moved += 1
-                        except Exception as e:
-                            # fallback: copy then remove
-                            try:
-                                shutil.copy2(s, d)
-                                os.remove(s)
-                                moved += 1
-                            except Exception as ex:
-                                # skip bad file
-                                yield send_json({"step": "move_images", "status": "warning", "message": f"Skipped {fname}: {str(ex)}"})
+
+            for log in annotated_logs:
+                true_label_folder = "Cat" if log.true_label == "Cat" else "Not_Cat"
+                src_path = os.path.join(app.config['UPLOAD_FOLDER'], log.folder_name, log.image_name)
+                dst_folder = os.path.join(dst_base, true_label_folder)
+                os.makedirs(dst_folder, exist_ok=True)
+                dst_path = os.path.join(dst_folder, log.image_name)
+
+                if os.path.exists(src_path):
+                    try:
+                        shutil.move(src_path, dst_path)
+                        moved += 1
+                        log.true_label = None  # Reset annotation after moving
+                        log.folder_name = true_label_folder
+                        db.session.commit()
+                    except Exception as e:
+                        yield send_json({"step": "move_images", "status": "warning",
+                                         "message": f"Skipped {log.image_name}: {str(e)}"})
+
             yield send_json({"step": "move_images", "status": "success", "message": f"Moved {moved} files."})
         except Exception as e:
             yield send_json({"step": "move_images", "status": "failed", "message": str(e)})
@@ -230,12 +234,33 @@ def stream_push_retrain():
         # Step 4: git push
         yield send_json({"step": "git_push", "status": "started", "message": "Running git push"})
         try:
-            p = subprocess.run(["git", "push"], cwd=BASE_DIR, capture_output=True, text=True)
-            combined = (p.stdout or "") + (p.stderr or "")
-            if p.returncode == 0:
-                yield send_json({"step": "git_push", "status": "success", "message": combined.strip() or "git push ok"})
+            GIT_USERNAME = "mqminh"
+            GIT_TOKEN = "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"
+
+            # Repo URL với token
+            REMOTE_URL = f"https://{GIT_USERNAME}:{GIT_TOKEN}@github.com/testmse21/mlops-demo.git"
+            # Update remote "origin" để chắc chắn dùng URL có token
+            if "origin" in repo.remotes:
+                origin = repo.remotes.origin
+                origin.set_url(REMOTE_URL)
             else:
-                yield send_json({"step": "git_push", "status": "failed", "message": combined.strip()})
+                origin = repo.create_remote("origin", REMOTE_URL)
+
+            push_result = origin.push()
+
+            # Kiểm tra kết quả push
+            messages = []
+            success = True
+            for info in push_result:
+                messages.append(info.summary)
+                if info.flags & info.ERROR:
+                    success = False
+
+            if success:
+                yield send_json(
+                    {"step": "git_push", "status": "success", "message": "\n".join(messages) or "git push ok"})
+            else:
+                yield send_json({"step": "git_push", "status": "failed", "message": "\n".join(messages)})
                 yield send_json({"event": "finished", "success": False})
                 return
         except Exception as e:
@@ -252,7 +277,6 @@ def stream_push_retrain():
         "X-Accel-Buffering": "no"  # turn off buffering for some proxies
     }
     return Response(stream_with_context(generate()), mimetype='text/event-stream', headers=headers)
-
 
 @app.route('/api/logs/<int:log_id>/annotate', methods=['POST'])
 def annotate(log_id):

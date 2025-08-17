@@ -54,6 +54,7 @@
                             <th>Prediction</th>
                             <th>Confidence</th>
                             <th>Timestamp</th>
+                            <th>True Label</th>
                         </tr>
                     </thead>
                     <tbody id="recentUploads"></tbody>
@@ -186,6 +187,7 @@ function loadRecentUploads() {
         .then(data => {
             const tbody = document.getElementById('recentUploads'); tbody.innerHTML = '';
             data.forEach(log => {
+                const trueLabel = log.true_label;
                 tbody.innerHTML += `
                 <tr>
                     <td>${log.username}</td>
@@ -193,11 +195,43 @@ function loadRecentUploads() {
                     <td>${log.predicted_label}</td>
                     <td>${parseFloat(log.confidence * 100).toFixed(2)}%</td>
                     <td>${log.timestamp}</td>
+                    <td>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="true-label-${log.id}" id="cat-${log.id}" value="Cat" ${trueLabel === 'Cat' ? 'checked' : ''}>
+                            <label class="form-check-label" for="cat-${log.id}">Cat</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="true-label-${log.id}" id="not-cat-${log.id}" value="Not Cat" ${trueLabel === 'Not Cat' ? 'checked' : ''}>
+                            <label class="form-check-label" for="not-cat-${log.id}">Not Cat</label>
+                        </div>
+                    </td>
                 </tr>`;
             });
             // build accuracy chart here as well
             buildAccuracyChart(data);
+            attachAnnotationHandlers();
         });
+}
+
+function attachAnnotationHandlers() {
+    document.querySelectorAll('input[type="radio"]').forEach(radio => {
+        radio.addEventListener('change', (event) => {
+            const logId = event.target.name.split('-')[2];
+            const trueLabel = event.target.value;
+            fetch(`/api/logs/${logId}/annotate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ true_label: trueLabel })
+            })
+            .then(res => res.json())
+            .then(data => {
+                console.log('Annotation saved:', data);
+            })
+            .catch(err => {
+                console.error('Failed to save annotation:', err);
+            });
+        });
+    });
 }
 
 function buildAccuracyChart(data) {

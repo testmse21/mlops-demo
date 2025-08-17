@@ -10,3 +10,4 @@ api/.DS_Store
 .idea/mlops-demo.iml
 .idea/modules.xml
 .idea/vcs.xml
+/api/uploads
