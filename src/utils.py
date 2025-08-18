@@ -7,7 +7,7 @@ def load_data():
         transforms.ToTensor(),
     ])
 
-    dataset = datasets.ImageFolder("data/images", transform=transform)
+    dataset = datasets.ImageFolder("../data/images", transform=transform)
 
     # Split into training and validation
     train_size = int(0.8 * len(dataset))
